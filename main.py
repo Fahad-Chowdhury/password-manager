@@ -3,6 +3,7 @@ import tkinter
 from tkinter import messagebox
 from random import choice, randint, shuffle
 import pyperclip
+import json
 
 
 class PasswordManager():
@@ -17,7 +18,9 @@ class PasswordManager():
         self.pw_entry = None
         self.gen_button = None
         self.add_button = None
+        self.search_button = None
         self.current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.data_file_path = os.path.join(self.current_dir, "data.json")
         self.setup_ui()
 
     # ---------------------------- UI SETUP ------------------------------- #
@@ -56,8 +59,8 @@ class PasswordManager():
 
     def _setup_user_inputs(self):
         """ Setup Input boxes from user for Website, username and password. """
-        self.web_entry = tkinter.Entry(width=51)
-        self.web_entry.grid(row=1, column=1, columnspan=2)
+        self.web_entry = tkinter.Entry(width=33)
+        self.web_entry.grid(row=1, column=1)
         # Set the cursor at website entry
         self.web_entry.focus()
         self.email_entry = tkinter.Entry(width=51)
@@ -68,12 +71,36 @@ class PasswordManager():
         self.pw_entry.grid(row=3, column=1)
 
     def _setup_buttons(self):
-        """ Setup 'Generate Password' and 'Add' Buttons. """
+        """ Setup 'Search', 'Generate Password' and 'Add' Buttons. """
+        self.search_button = tkinter.Button(text="Search", width=14,
+                                            command=self.search_password)
+        self.search_button.grid(row=1, column=2)
         self.gen_button = tkinter.Button(text="Generate Password", width=14,
                                          command=self.generate_password)
         self.gen_button.grid(row=3, column=2)
         self.add_button = tkinter.Button(text="Add", width=43, command=self.save_data)
         self.add_button.grid(row=4, column=1, columnspan=2)
+
+    # ----------------------------- SEARCH PASSWORD --------------------------------- #
+
+    def search_password(self):
+        """ Search for saved website information. If found display them, else display
+        data not found message. This method is used when 'Search' button is clicked. """
+        website = self.web_entry.get()
+        try:
+            with open(self.data_file_path, "r") as data_file:
+                data = json.load(data_file)
+        except FileNotFoundError:
+            messagebox.showinfo(title="Data File Not Found", message="No data file found.")
+        except json.decoder.JSONDecodeError:
+            messagebox.showinfo(title="Data Not Found", message="No details for website exists.")
+        else:
+            if website in data:
+                email = data[website]["email"]
+                password = data[website]["password"]
+                messagebox.showinfo(title=website, message=f"E-mail: {email}\nPassword: {password}")
+            else:
+                messagebox.showinfo(title="Data Not Found", message="No details for website exists.")
 
     # ---------------------------- PASSWORD GENERATOR ------------------------------- #
 
@@ -81,7 +108,7 @@ class PasswordManager():
         """ Generates a password that includes 8-10 letters, 2-4 numbers and 2-4 symbols
         or special characters. Clear the password input box and insert the generated
         password. Also, copy the pasword to clipboard using pyperclip library.
-        This method is used when 'Generate Password' button is clicked.  """
+        This method is used when 'Generate Password' button is clicked. """
         #Password Generator Project
         letters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
                    'n','o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
@@ -103,29 +130,43 @@ class PasswordManager():
 
     # ---------------------------- SAVE PASSWORD ------------------------------- #
 
+    def write_data_to_file(self, new_data):
+        """ Read data from 'data.json' file and update the file with the updated data. """
+        # Read data from 'data.json' file
+        try:
+            with open(self.data_file_path, "r") as data_file:
+                data = json.load(data_file)
+                data.update(new_data)
+        except (FileNotFoundError, json.decoder.JSONDecodeError):
+            data = new_data
+
+        # Write data to 'data.json' file with the updated data
+        with open(self.data_file_path, "w") as data_file:
+            json.dump(data, data_file, indent=4)
+
     def save_data(self):
         """ If all the users inputs are valid, saves the data (website, email/username
-        and password) to 'data.txt' file and clears the entries or the user inputs.
+        and password) to 'data.json' file and clears the entries or the user inputs using
+        write_data_to_file() method.
         This method is used when 'Add' button is clicked. """
-        # Concatenate user inputs separated by ' | ' and by adding a new line at the end
         website = self.web_entry.get()
         email = self.email_entry.get()
         pw = self.pw_entry.get()
-        data = ' | '.join([website, email, pw]) + '\n'
+        new_data = {
+            website: {
+                "email": email,
+                "password": pw,
+            }
+        }
 
         if website and email and pw:
             msg = f"These are the details entered:\nE-mail: {email}\nPassword: {pw}\n\nIs it OK to save?"
             is_ok = messagebox.askokcancel(title=website, message=msg)
             if is_ok:
-                # Store data in the file
-                data_file_path = os.path.join(self.current_dir, "data.txt")
-                with open(data_file_path, "a") as file:
-                    file.write(data)
-
+                self.write_data_to_file(new_data)
                 # Clear website and password user inputs
                 self.web_entry.delete(0, tkinter.END)
                 self.pw_entry.delete(0, tkinter.END)
-                # messagebox.showinfo(title="Add", message="OK")
         else:
             messagebox.showinfo(title="Oops", message="Please don't leave any field empty.")
 
